@@ -1,0 +1,48 @@
+# .github/workflows/naika_bot.yml
+name: Naika Senmon-i Bot
+
+on:
+  schedule:
+    # 1日4回 (JST) - 他botと重ならない時間帯に設定
+    - cron: "37 0 * * *"    # JST 09:37 (午前)
+    - cron: "37 6 * * *"    # JST 15:37 (午後)
+    - cron: "37 11 * * *"   # JST 20:37 (夜)
+    - cron: "37 16 * * *"   # JST 01:37 (深夜 → 翌朝確認用)
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Pull latest changes
+        run: git pull --rebase || true
+
+      - name: Run bot
+        env:
+          NAIKA_WEBHOOK_URL: ${{ secrets.NAIKA_WEBHOOK_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python naika_bot.py
+
+      - name: Save posted data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add posted_naika.json || true
+          git diff --staged --quiet || git commit -m "Update naika bot posted data [skip ci]"
+          git pull --rebase || true
+          git push || true
